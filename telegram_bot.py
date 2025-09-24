@@ -5,13 +5,14 @@ import os
 from typing import Final, Dict, Any
 
 from dotenv import load_dotenv
-from telegram import Update
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.constants import ParseMode
 from telegram.ext import (
     Application,
     ApplicationBuilder,
     CommandHandler,
     MessageHandler,
+    CallbackQueryHandler,
     ContextTypes,
     filters,
 )
@@ -44,8 +45,33 @@ conversation_data: Dict[int, Dict[str, Any]] = {}
 
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    keyboard = [
+        [
+            InlineKeyboardButton("👤 User Details", callback_data="user_details"),
+            InlineKeyboardButton("📈 User Top Posts", callback_data="user_top"),
+        ],
+        [
+            InlineKeyboardButton("🔥 Hot Posts", callback_data="subreddit_hot"),
+            InlineKeyboardButton("🏆 Top Posts", callback_data="subreddit_top"),
+        ],
+        [InlineKeyboardButton("❓ Help", callback_data="help")]
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    
+    welcome_text = (
+        "🤖 **Reddit Bot** - Your Reddit data assistant!\n\n"
+        "Choose what you'd like to do:\n\n"
+        "• **User Details** - Get account stats for any Reddit user\n"
+        "• **User Top Posts** - Find top posts by a specific user\n"
+        "• **Hot Posts** - Get trending posts from any subreddit\n"
+        "• **Top Posts** - Get all-time top posts from any subreddit\n\n"
+        "Just tap a button below to get started! 🚀"
+    )
+    
     await update.message.reply_text(
-        "Hi! I can fetch Reddit data. Use /help to see commands."
+        welcome_text, 
+        reply_markup=reply_markup,
+        parse_mode=ParseMode.MARKDOWN
     )
 
 
@@ -59,6 +85,39 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         "Just use the command and I'll ask you for the information I need step by step!"
     )
     await update.message.reply_text(help_text)
+
+
+async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    query = update.callback_query
+    await query.answer()
+    
+    user_id = query.from_user.id
+    
+    if query.data == "help":
+        help_text = (
+            "**Available Commands:**\n\n"
+            "🔍 **User Details** - Get account stats for any Reddit user\n"
+            "📈 **User Top Posts** - Find top posts by a specific user\n"
+            "🔥 **Hot Posts** - Get trending posts from any subreddit\n"
+            "🏆 **Top Posts** - Get all-time top posts from any subreddit\n\n"
+            "Just tap a button or use the commands directly!"
+        )
+        await query.edit_message_text(help_text, parse_mode=ParseMode.MARKDOWN)
+        return
+    
+    # Start the appropriate conversation
+    if query.data == "user_details":
+        conversation_data[user_id] = {"command": "user_details", "data": {}}
+        await query.edit_message_text("What's the Reddit username you want to check? (without u/)")
+    elif query.data == "user_top":
+        conversation_data[user_id] = {"command": "user_top", "data": {}}
+        await query.edit_message_text("What's the Reddit username you want to check? (without u/)")
+    elif query.data == "subreddit_hot":
+        conversation_data[user_id] = {"command": "subreddit_hot", "data": {}}
+        await query.edit_message_text("What subreddit do you want to check? (without r/)")
+    elif query.data == "subreddit_top":
+        conversation_data[user_id] = {"command": "subreddit_top", "data": {}}
+        await query.edit_message_text("What subreddit do you want to check? (without r/)")
 
 
 # Implementations using reddit_service
@@ -76,45 +135,71 @@ def _format_json_as_text(data_json: str) -> str:
     except Exception:
         return data_json
 
-    # Compact human-readable summary for Telegram
+    # Enhanced formatting for user details
     if "username" in data and "account_age_days" in data:
+        username = data.get('username', 'Unknown')
+        account_age = data.get('account_age_days', 0)
+        post_karma = data.get('post_karma', 0)
+        comment_karma = data.get('comment_karma', 0)
+        period_days = data.get('period_days', 1)
+        posts_submitted = data.get('posts_submitted', 0)
+        total_upvotes = data.get('total_upvotes', 0)
+        total_comments = data.get('total_comments', 0)
+        deleted_posts = data.get('deleted_posts', 0)
+        removed_by_mods = data.get('removed_by_mods', 0)
+        removed_by_spam = data.get('removed_by_spam', 0)
+        removed_by_rules = data.get('removed_by_rules', 0)
+        
         lines = [
-            f"User: {data.get('username')}",
-            f"Account age: {data.get('account_age_days')} days",
-            f"Post karma: {data.get('post_karma')} | Comment karma: {data.get('comment_karma')}",
-            f"Posts in {data.get('period_days')}d: {data.get('posts_submitted')} | Upvotes: {data.get('total_upvotes')} | Comments: {data.get('total_comments')}",
-            f"Removed: {data.get('deleted_posts')} (mods: {data.get('removed_by_mods')}, spam: {data.get('removed_by_spam')}, rules: {data.get('removed_by_rules')})",
+            f"👤 **{username}**",
+            f"📅 Account age: {account_age:,} days",
+            f"📊 Karma: {post_karma:,} posts | {comment_karma:,} comments",
+            f"📈 Last {period_days} days: {posts_submitted} posts | {total_upvotes:,} upvotes | {total_comments:,} comments",
+            f"⚠️ Removed: {deleted_posts} (mods: {removed_by_mods}, spam: {removed_by_spam}, rules: {removed_by_rules})",
+            ""
         ]
+        
         top = data.get("highest_posts", [])
         if top:
-            lines.append("Top posts:")
-            for item in top:
-                title = item.get("title")
-                up = item.get("upvotes")
-                sub = item.get("subreddit")
-                link = item.get("permalink")
-                lines.append(f"- ({up}) r/{sub}: {title}\nhttps://www.reddit.com{link}")
+            lines.append("🏆 **Top Posts:**")
+            for i, item in enumerate(top[:5], 1):
+                title = item.get("title", "No title")
+                up = item.get("upvotes", 0)
+                sub = item.get("subreddit", "unknown")
+                link = item.get("permalink", "")
+                lines.append(f"{i}. **{title}**")
+                lines.append(f"   📊 {up:,} upvotes | r/{sub}")
+                lines.append(f"   🔗 https://www.reddit.com{link}")
+                lines.append("")
+        
         return "\n".join(lines)[:4000]
 
-    # Generic list formatter
+    # Enhanced formatting for post lists
     results = data.get("results")
     if isinstance(results, list):
         header_parts = []
         if "username" in data:
-            header_parts.append(f"User: {data.get('username')}")
+            header_parts.append(f"👤 {data.get('username')}")
         if "subreddit" in data:
-            header_parts.append(f"r/{data.get('subreddit')}")
+            header_parts.append(f"📱 r/{data.get('subreddit')}")
         if data.get("keywords"):
-            header_parts.append(f"keywords: {data.get('keywords')}")
-        header = " | ".join(header_parts)
-        lines = [header] if header else []
-        for item in results[:20]:
-            title = item.get("title")
-            up = item.get("upvotes")
-            link = item.get("permalink")
-            lines.append(f"- ({up}) {title}\nhttps://www.reddit.com{link}")
+            header_parts.append(f"🔍 '{data.get('keywords')}'")
+        
+        lines = [" | ".join(header_parts), ""] if header_parts else []
+        
+        for i, item in enumerate(results[:10], 1):
+            title = item.get("title", "No title")
+            up = item.get("upvotes", 0)
+            link = item.get("permalink", "")
+            sub = item.get("subreddit", "unknown")
+            
+            lines.append(f"**{i}. {title}**")
+            lines.append(f"📊 {up:,} upvotes | r/{sub}")
+            lines.append(f"🔗 https://www.reddit.com{link}")
+            lines.append("")
+        
         text = "\n".join(lines)
-        return text[:4000] if text else "No results."
+        return text[:4000] if text else "❌ No results found."
 
     # Fallback to pretty JSON
     return json.dumps(data, indent=2)[:4000]
@@ -166,7 +251,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
                     # Execute the command
                     result_json = get_account_details(username=data["username"], period_days=data["days"])
                     text = _format_json_as_text(result_json)
-                    await update.message.reply_text(text, disable_web_page_preview=True)
+                    await update.message.reply_text(text, disable_web_page_preview=True, parse_mode=ParseMode.MARKDOWN)
                     
                     # Clear conversation
                     del conversation_data[user_id]
@@ -196,7 +281,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
                         captions_only=False
                     )
                     text = _format_json_as_text(result_json)
-                    await update.message.reply_text(text, disable_web_page_preview=True)
+                    await update.message.reply_text(text, disable_web_page_preview=True, parse_mode=ParseMode.MARKDOWN)
                     
                     # Clear conversation
                     del conversation_data[user_id]
@@ -226,7 +311,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
                         captions_only=False
                     )
                     text = _format_json_as_text(result_json)
-                    await update.message.reply_text(text, disable_web_page_preview=True)
+                    await update.message.reply_text(text, disable_web_page_preview=True, parse_mode=ParseMode.MARKDOWN)
                     
                     # Clear conversation
                     del conversation_data[user_id]
@@ -256,7 +341,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
                         captions_only=False
                     )
                     text = _format_json_as_text(result_json)
-                    await update.message.reply_text(text, disable_web_page_preview=True)
+                    await update.message.reply_text(text, disable_web_page_preview=True, parse_mode=ParseMode.MARKDOWN)
                     
                     # Clear conversation
                     del conversation_data[user_id]
@@ -285,6 +370,7 @@ def build_application() -> Application:
     app.add_handler(CommandHandler("user_top", user_top))
     app.add_handler(CommandHandler("subreddit_hot", subreddit_hot))
     app.add_handler(CommandHandler("subreddit_top", subreddit_top))
+    app.add_handler(CallbackQueryHandler(button_callback))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
     return app
 
