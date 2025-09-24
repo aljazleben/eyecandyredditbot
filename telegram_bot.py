@@ -129,7 +129,7 @@ from reddit_service import (
 )
 
 
-def _format_json_as_text(data_json: str) -> str:
+def _format_json_as_text(data_json: str, include_links: bool = True) -> str:
     try:
         data = json.loads(data_json)
     except Exception:
@@ -162,15 +162,16 @@ def _format_json_as_text(data_json: str) -> str:
         top = data.get("highest_posts", [])
         if top:
             lines.append("🏆 **Top Posts:**")
-            for i, item in enumerate(top[:5], 1):
-                title = item.get("title", "No title")
-                up = item.get("upvotes", 0)
-                sub = item.get("subreddit", "unknown")
-                link = item.get("permalink", "")
-                lines.append(f"{i}. **{title}**")
-                lines.append(f"   📊 {up:,} upvotes | r/{sub}")
+        for i, item in enumerate(top[:5], 1):
+            title = item.get("title", "No title")
+            up = item.get("upvotes", 0)
+            sub = item.get("subreddit", "unknown")
+            link = item.get("permalink", "")
+            lines.append(f"{i}. **{title}**")
+            lines.append(f"   📊 {up:,} upvotes | r/{sub}")
+            if include_links:
                 lines.append(f"   🔗 https://www.reddit.com{link}")
-                lines.append("")
+            lines.append("")
         
         return "\n".join(lines)[:4000]
 
@@ -195,7 +196,8 @@ def _format_json_as_text(data_json: str) -> str:
             
             lines.append(f"**{i}. {title}**")
             lines.append(f"📊 {up:,} upvotes | r/{sub}")
-            lines.append(f"🔗 https://www.reddit.com{link}")
+            if include_links:
+                lines.append(f"🔗 https://www.reddit.com{link}")
             lines.append("")
         
         text = "\n".join(lines)
@@ -272,7 +274,14 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
                 try:
                     limit = int(user_input) if user_input else 30
                     data["limit"] = limit
-                    
+                    await update.message.reply_text("Do you want links included in the results? (yes/no, default: yes)")
+                except ValueError:
+                    await update.message.reply_text("Please enter a valid number (or just press Enter for default 30)")
+            elif "include_links" not in data:
+                include_links = user_input.lower() in ['yes', 'y', '1', 'true', ''] if user_input else True
+                data["include_links"] = include_links
+                
+                try:
                     # Execute the command
                     result_json = get_top_30_captions(
                         username=data["username"], 
@@ -280,13 +289,11 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
                         limit=data["limit"], 
                         captions_only=False
                     )
-                    text = _format_json_as_text(result_json)
+                    text = _format_json_as_text(result_json, include_links=data["include_links"])
                     await update.message.reply_text(text, disable_web_page_preview=True, parse_mode=ParseMode.MARKDOWN)
                     
                     # Clear conversation
                     del conversation_data[user_id]
-                except ValueError:
-                    await update.message.reply_text("Please enter a valid number (or just press Enter for default 30)")
                 except Exception as exc:
                     await update.message.reply_text(f"Error: {exc}")
                     del conversation_data[user_id]
@@ -302,7 +309,14 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
                 try:
                     limit = int(user_input) if user_input else 20
                     data["limit"] = limit
-                    
+                    await update.message.reply_text("Do you want links included in the results? (yes/no, default: yes)")
+                except ValueError:
+                    await update.message.reply_text("Please enter a valid number (or just press Enter for default 20)")
+            elif "include_links" not in data:
+                include_links = user_input.lower() in ['yes', 'y', '1', 'true', ''] if user_input else True
+                data["include_links"] = include_links
+                
+                try:
                     # Execute the command
                     result_json = get_top_20_hot(
                         subreddit_name=data["subreddit"], 
@@ -310,13 +324,11 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
                         limit=data["limit"], 
                         captions_only=False
                     )
-                    text = _format_json_as_text(result_json)
+                    text = _format_json_as_text(result_json, include_links=data["include_links"])
                     await update.message.reply_text(text, disable_web_page_preview=True, parse_mode=ParseMode.MARKDOWN)
                     
                     # Clear conversation
                     del conversation_data[user_id]
-                except ValueError:
-                    await update.message.reply_text("Please enter a valid number (or just press Enter for default 20)")
                 except Exception as exc:
                     await update.message.reply_text(f"Error: {exc}")
                     del conversation_data[user_id]
@@ -332,7 +344,14 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
                 try:
                     limit = int(user_input) if user_input else 20
                     data["limit"] = limit
-                    
+                    await update.message.reply_text("Do you want links included in the results? (yes/no, default: yes)")
+                except ValueError:
+                    await update.message.reply_text("Please enter a valid number (or just press Enter for default 20)")
+            elif "include_links" not in data:
+                include_links = user_input.lower() in ['yes', 'y', '1', 'true', ''] if user_input else True
+                data["include_links"] = include_links
+                
+                try:
                     # Execute the command
                     result_json = get_top_20_all_time(
                         subreddit_name=data["subreddit"], 
@@ -340,13 +359,11 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
                         limit=data["limit"], 
                         captions_only=False
                     )
-                    text = _format_json_as_text(result_json)
+                    text = _format_json_as_text(result_json, include_links=data["include_links"])
                     await update.message.reply_text(text, disable_web_page_preview=True, parse_mode=ParseMode.MARKDOWN)
                     
                     # Clear conversation
                     del conversation_data[user_id]
-                except ValueError:
-                    await update.message.reply_text("Please enter a valid number (or just press Enter for default 20)")
                 except Exception as exc:
                     await update.message.reply_text(f"Error: {exc}")
                     del conversation_data[user_id]
