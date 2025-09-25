@@ -90,6 +90,7 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
     await update.message.reply_text(help_text)
 
 
+# Added a "No Keywords" button for functions that pull captions
 async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     query = update.callback_query
     await query.answer()
@@ -121,6 +122,10 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     elif query.data == "subreddit_top":
         conversation_data[user_id] = {"command": "subreddit_top", "data": {}}
         await query.edit_message_text("What subreddit do you want to check? (without r/)")
+    elif query.data == "no_keywords":
+        if user_id in conversation_data:
+            conversation_data[user_id]["data"]["keywords"] = ""
+            await query.edit_message_text("No keywords selected. Proceeding...")
 
 
 # Implementations using reddit_service
