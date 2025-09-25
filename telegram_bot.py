@@ -109,6 +109,60 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         await query.edit_message_text(help_text, parse_mode=ParseMode.MARKDOWN)
         return
 
+    if query.data.startswith("include_links_"):
+        if user_id in conversation_data:
+            include_links = query.data == "include_links_yes"
+            conversation_data[user_id]["data"]["include_links"] = include_links
+            command = conversation_data[user_id]["command"]
+
+            if command == "user_top":
+                try:
+                    # Execute the command
+                    result_json = get_top_30_captions(
+                        username=conversation_data[user_id]["data"]["username"],
+                        keywords=conversation_data[user_id]["data"].get("keywords", ""),
+                        limit=conversation_data[user_id]["data"].get("limit", 30),
+                        captions_only=False
+                    )
+                    text = _format_json_as_text(result_json, include_links=include_links)
+                    await _send_split_messages(context, query.message.chat_id, text, ParseMode.MARKDOWN)
+                except Exception as exc:
+                    await query.message.reply_text(f"Error: {exc}")
+                finally:
+                    del conversation_data[user_id]
+
+            elif command == "subreddit_hot":
+                try:
+                    # Execute the command
+                    result_json = get_top_20_hot(
+                        subreddit_name=conversation_data[user_id]["data"]["subreddit"],
+                        keywords=conversation_data[user_id]["data"].get("keywords", ""),
+                        limit=conversation_data[user_id]["data"].get("limit", 20),
+                        captions_only=False
+                    )
+                    text = _format_json_as_text(result_json, include_links=include_links)
+                    await _send_split_messages(context, query.message.chat_id, text, ParseMode.MARKDOWN)
+                except Exception as exc:
+                    await query.message.reply_text(f"Error: {exc}")
+                finally:
+                    del conversation_data[user_id]
+
+            elif command == "subreddit_top":
+                try:
+                    # Execute the command
+                    result_json = get_top_20_all_time(
+                        subreddit_name=conversation_data[user_id]["data"]["subreddit"],
+                        keywords=conversation_data[user_id]["data"].get("keywords", ""),
+                        limit=conversation_data[user_id]["data"].get("limit", 20),
+                        captions_only=False
+                    )
+                    text = _format_json_as_text(result_json, include_links=include_links)
+                    await _send_split_messages(context, query.message.chat_id, text, ParseMode.MARKDOWN)
+                except Exception as exc:
+                    await query.message.reply_text(f"Error: {exc}")
+                finally:
+                    del conversation_data[user_id]
+
     # Start the appropriate conversation
     if query.data == "user_details":
         conversation_data[user_id] = {"command": "user_details", "data": {}}
@@ -181,10 +235,22 @@ def _format_json_as_text(data_json: str, include_links: bool = True) -> str:
     return escape_markdown(json.dumps(data, indent=2), version=2)
 
 
-# Updated `_send_split_messages` to handle splitting messages properly
+# Improved `_send_split_messages` to handle Markdown escaping and splitting properly
 async def _send_split_messages(context, chat_id, text, parse_mode):
     MAX_TELEGRAM_MESSAGE_LENGTH = 4096
-    messages = [text[i:i + MAX_TELEGRAM_MESSAGE_LENGTH] for i in range(0, len(text), MAX_TELEGRAM_MESSAGE_LENGTH)]
+
+    # Split the text into chunks that respect word boundaries
+    messages = []
+    while len(text) > MAX_TELEGRAM_MESSAGE_LENGTH:
+        split_index = text.rfind('\n', 0, MAX_TELEGRAM_MESSAGE_LENGTH)
+        if split_index == -1:
+            split_index = MAX_TELEGRAM_MESSAGE_LENGTH
+        messages.append(text[:split_index])
+        text = text[split_index:].lstrip()
+
+    messages.append(text)  # Add the remaining text
+
+    # Send each message
     for message in messages:
         try:
             await context.bot.send_message(chat_id=chat_id, text=message, parse_mode=parse_mode)
@@ -243,29 +309,15 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
                 try:
                     limit = int(user_input) if user_input else 30
                     data["limit"] = limit
-                    await update.message.reply_text("Do you want links included in the results? (yes/no, default: yes)")
+                    await update.message.reply_text(
+                        "Do you want links included in the results? (default: yes)",
+                        reply_markup=InlineKeyboardMarkup([
+                            [InlineKeyboardButton("Yes", callback_data="include_links_yes"),
+                             InlineKeyboardButton("No", callback_data="include_links_no")]
+                        ])
+                    )
                 except ValueError:
                     await update.message.reply_text("Please enter a valid number (or just press Enter for default 30)")
-            elif "include_links" not in data:
-                include_links = user_input.lower() in ['yes', 'y', '1', 'true', ''] if user_input else True
-                data["include_links"] = include_links
-                
-                try:
-                    # Execute the command
-                    result_json = get_top_30_captions(
-                        username=data["username"], 
-                        keywords=data["keywords"], 
-                        limit=data["limit"], 
-                        captions_only=False
-                    )
-                    text = _format_json_as_text(result_json, include_links=data["include_links"])
-                    await _send_split_messages(context, chat_id, text, ParseMode.MARKDOWN)
-                    
-                    # Clear conversation
-                    del conversation_data[user_id]
-                except Exception as exc:
-                    await update.message.reply_text(f"Error: {exc}")
-                    del conversation_data[user_id]
         
         elif command == "subreddit_hot":
             if "subreddit" not in data:
@@ -281,29 +333,15 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
                 try:
                     limit = int(user_input) if user_input else 20
                     data["limit"] = limit
-                    await update.message.reply_text("Do you want links included in the results? (yes/no, default: yes)")
+                    await update.message.reply_text(
+                        "Do you want links included in the results? (default: yes)",
+                        reply_markup=InlineKeyboardMarkup([
+                            [InlineKeyboardButton("Yes", callback_data="include_links_yes"),
+                             InlineKeyboardButton("No", callback_data="include_links_no")]
+                        ])
+                    )
                 except ValueError:
                     await update.message.reply_text("Please enter a valid number (or just press Enter for default 20)")
-            elif "include_links" not in data:
-                include_links = user_input.lower() in ['yes', 'y', '1', 'true', ''] if user_input else True
-                data["include_links"] = include_links
-                
-                try:
-                    # Execute the command
-                    result_json = get_top_20_hot(
-                        subreddit_name=data["subreddit"], 
-                        keywords=data["keywords"], 
-                        limit=data["limit"], 
-                        captions_only=False
-                    )
-                    text = _format_json_as_text(result_json, include_links=data["include_links"])
-                    await _send_split_messages(context, chat_id, text, ParseMode.MARKDOWN)
-                    
-                    # Clear conversation
-                    del conversation_data[user_id]
-                except Exception as exc:
-                    await update.message.reply_text(f"Error: {exc}")
-                    del conversation_data[user_id]
         
         elif command == "subreddit_top":
             if "subreddit" not in data:
@@ -319,29 +357,15 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
                 try:
                     limit = int(user_input) if user_input else 20
                     data["limit"] = limit
-                    await update.message.reply_text("Do you want links included in the results? (yes/no, default: yes)")
+                    await update.message.reply_text(
+                        "Do you want links included in the results? (default: yes)",
+                        reply_markup=InlineKeyboardMarkup([
+                            [InlineKeyboardButton("Yes", callback_data="include_links_yes"),
+                             InlineKeyboardButton("No", callback_data="include_links_no")]
+                        ])
+                    )
                 except ValueError:
                     await update.message.reply_text("Please enter a valid number (or just press Enter for default 20)")
-            elif "include_links" not in data:
-                include_links = user_input.lower() in ['yes', 'y', '1', 'true', ''] if user_input else True
-                data["include_links"] = include_links
-                
-                try:
-                    # Execute the command
-                    result_json = get_top_20_all_time(
-                        subreddit_name=data["subreddit"], 
-                        keywords=data["keywords"], 
-                        limit=data["limit"], 
-                        captions_only=False
-                    )
-                    text = _format_json_as_text(result_json, include_links=data["include_links"])
-                    await _send_split_messages(context, chat_id, text, ParseMode.MARKDOWN)
-                    
-                    # Clear conversation
-                    del conversation_data[user_id]
-                except Exception as exc:
-                    await update.message.reply_text(f"Error: {exc}")
-                    del conversation_data[user_id]
     
     except Exception as exc:
         await update.message.reply_text(f"An error occurred: {exc}")
