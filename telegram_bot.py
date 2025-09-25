@@ -177,7 +177,7 @@ def _format_json_as_text(data_json: str, include_links: bool = True) -> str:
                 lines.append(f"   🔗 [Link](https://www.reddit.com{link})")
             lines.append("")
 
-        return "\n".join(lines)[:4000]
+        return "\n".join(lines)
 
     # Enhanced formatting for post lists
     results = data.get("results")
@@ -192,7 +192,7 @@ def _format_json_as_text(data_json: str, include_links: bool = True) -> str:
 
         lines = [" | ".join(header_parts), ""] if header_parts else []
 
-        for i, item in enumerate(results[:10], 1):
+        for i, item in enumerate(results[:data.get("limit", 10)], 1):
             title = escape_markdown(item.get("title", "No title"), version=2)
             up = item.get("upvotes", 0)
             link = item.get("permalink", "")
@@ -205,10 +205,17 @@ def _format_json_as_text(data_json: str, include_links: bool = True) -> str:
             lines.append("")
 
         text = "\n".join(lines)
-        return text[:4000] if text else "❌ No results found."
+        return text if text else "❌ No results found."
 
     # Fallback to pretty JSON
-    return escape_markdown(json.dumps(data, indent=2)[:4000], version=2)
+    return escape_markdown(json.dumps(data, indent=2), version=2)
+
+
+def _send_split_messages(context, chat_id, text, parse_mode):
+    MAX_TELEGRAM_MESSAGE_LENGTH = 4096
+    messages = [text[i:i + MAX_TELEGRAM_MESSAGE_LENGTH] for i in range(0, len(text), MAX_TELEGRAM_MESSAGE_LENGTH)]
+    for message in messages:
+        context.bot.send_message(chat_id=chat_id, text=message, parse_mode=parse_mode)
 
 
 async def user_details(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -234,6 +241,7 @@ async def subreddit_top(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     user_id = update.effective_user.id
+    chat_id = update.effective_chat.id
     
     if user_id not in conversation_data:
         await update.message.reply_text("Please use one of the commands first: /user_details, /user_top, /subreddit_hot, or /subreddit_top")
@@ -257,7 +265,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
                     # Execute the command
                     result_json = get_account_details(username=data["username"], period_days=data["days"])
                     text = _format_json_as_text(result_json)
-                    await update.message.reply_text(text, disable_web_page_preview=True, parse_mode=ParseMode.MARKDOWN)
+                    _send_split_messages(context, chat_id, text, ParseMode.MARKDOWN)
                     
                     # Clear conversation
                     del conversation_data[user_id]
@@ -294,7 +302,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
                         captions_only=False
                     )
                     text = _format_json_as_text(result_json, include_links=data["include_links"])
-                    await update.message.reply_text(text, disable_web_page_preview=True, parse_mode=ParseMode.MARKDOWN)
+                    _send_split_messages(context, chat_id, text, ParseMode.MARKDOWN)
                     
                     # Clear conversation
                     del conversation_data[user_id]
@@ -329,7 +337,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
                         captions_only=False
                     )
                     text = _format_json_as_text(result_json, include_links=data["include_links"])
-                    await update.message.reply_text(text, disable_web_page_preview=True, parse_mode=ParseMode.MARKDOWN)
+                    _send_split_messages(context, chat_id, text, ParseMode.MARKDOWN)
                     
                     # Clear conversation
                     del conversation_data[user_id]
@@ -364,7 +372,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
                         captions_only=False
                     )
                     text = _format_json_as_text(result_json, include_links=data["include_links"])
-                    await update.message.reply_text(text, disable_web_page_preview=True, parse_mode=ParseMode.MARKDOWN)
+                    _send_split_messages(context, chat_id, text, ParseMode.MARKDOWN)
                     
                     # Clear conversation
                     del conversation_data[user_id]
