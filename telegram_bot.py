@@ -381,6 +381,11 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
             del conversation_data[user_id]
 
 
+# Placeholder implementation for the `user_details` command
+async def user_details(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    await update.message.reply_text("User details functionality is not yet implemented.")
+
+
 def build_application() -> Application:
     if not TELEGRAM_BOT_TOKEN:
         raise RuntimeError(
