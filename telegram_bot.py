@@ -396,6 +396,11 @@ async def subreddit_hot(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
     await update.message.reply_text("Subreddit hot posts functionality is not yet implemented.")
 
 
+# Placeholder implementation for the `subreddit_top` command
+async def subreddit_top(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    await update.message.reply_text("Subreddit top posts functionality is not yet implemented.")
+
+
 def build_application() -> Application:
     if not TELEGRAM_BOT_TOKEN:
         raise RuntimeError(
