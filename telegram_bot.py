@@ -211,11 +211,12 @@ def _format_json_as_text(data_json: str, include_links: bool = True) -> str:
     return escape_markdown(json.dumps(data, indent=2), version=2)
 
 
-def _send_split_messages(context, chat_id, text, parse_mode):
+# Fixed the `send_message` call to use `await` in `_send_split_messages`
+async def _send_split_messages(context, chat_id, text, parse_mode):
     MAX_TELEGRAM_MESSAGE_LENGTH = 4096
     messages = [text[i:i + MAX_TELEGRAM_MESSAGE_LENGTH] for i in range(0, len(text), MAX_TELEGRAM_MESSAGE_LENGTH)]
     for message in messages:
-        context.bot.send_message(chat_id=chat_id, text=message, parse_mode=parse_mode)
+        await context.bot.send_message(chat_id=chat_id, text=message, parse_mode=parse_mode)
 
 
 async def user_details(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -265,7 +266,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
                     # Execute the command
                     result_json = get_account_details(username=data["username"], period_days=data["days"])
                     text = _format_json_as_text(result_json)
-                    _send_split_messages(context, chat_id, text, ParseMode.MARKDOWN)
+                    await _send_split_messages(context, chat_id, text, ParseMode.MARKDOWN)
                     
                     # Clear conversation
                     del conversation_data[user_id]
@@ -302,7 +303,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
                         captions_only=False
                     )
                     text = _format_json_as_text(result_json, include_links=data["include_links"])
-                    _send_split_messages(context, chat_id, text, ParseMode.MARKDOWN)
+                    await _send_split_messages(context, chat_id, text, ParseMode.MARKDOWN)
                     
                     # Clear conversation
                     del conversation_data[user_id]
@@ -337,7 +338,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
                         captions_only=False
                     )
                     text = _format_json_as_text(result_json, include_links=data["include_links"])
-                    _send_split_messages(context, chat_id, text, ParseMode.MARKDOWN)
+                    await _send_split_messages(context, chat_id, text, ParseMode.MARKDOWN)
                     
                     # Clear conversation
                     del conversation_data[user_id]
@@ -372,7 +373,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
                         captions_only=False
                     )
                     text = _format_json_as_text(result_json, include_links=data["include_links"])
-                    _send_split_messages(context, chat_id, text, ParseMode.MARKDOWN)
+                    await _send_split_messages(context, chat_id, text, ParseMode.MARKDOWN)
                     
                     # Clear conversation
                     del conversation_data[user_id]
