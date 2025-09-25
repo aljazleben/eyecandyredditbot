@@ -172,6 +172,37 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
             elif command == "subreddit_top":
                 await query.edit_message_text("How many posts to show? (default: 20)")
 
+    if query.data.startswith("limit_"):
+        if user_id in conversation_data:
+            limit = int(query.data.split("_")[1])
+            conversation_data[user_id]["data"]["limit"] = limit
+            command = conversation_data[user_id]["command"]
+
+            if command == "user_top":
+                await query.edit_message_text(
+                    "Do you want links included in the results? (default: yes)",
+                    reply_markup=InlineKeyboardMarkup([
+                        [InlineKeyboardButton("Yes", callback_data="include_links_yes"),
+                         InlineKeyboardButton("No", callback_data="include_links_no")]
+                    ])
+                )
+            elif command == "subreddit_hot":
+                await query.edit_message_text(
+                    "Do you want links included in the results? (default: yes)",
+                    reply_markup=InlineKeyboardMarkup([
+                        [InlineKeyboardButton("Yes", callback_data="include_links_yes"),
+                         InlineKeyboardButton("No", callback_data="include_links_no")]
+                    ])
+                )
+            elif command == "subreddit_top":
+                await query.edit_message_text(
+                    "Do you want links included in the results? (default: yes)",
+                    reply_markup=InlineKeyboardMarkup([
+                        [InlineKeyboardButton("Yes", callback_data="include_links_yes"),
+                         InlineKeyboardButton("No", callback_data="include_links_no")]
+                    ])
+                )
+
 
 # Implementations using reddit_service
 from reddit_service import (
@@ -220,23 +251,24 @@ def _format_json_as_text(data_json: str, include_links: bool = True) -> str:
     return escape_markdown(json.dumps(data, indent=2), version=2)
 
 
-# Improved `_send_split_messages` to handle Markdown escaping and splitting properly
+# Updated `_send_split_messages` to send a maximum of 20 captions per message
 async def _send_split_messages(context, chat_id, text, parse_mode):
+    MAX_CAPTIONS_PER_MESSAGE = 20
     MAX_TELEGRAM_MESSAGE_LENGTH = 4096
 
-    # Split the text into chunks that respect word boundaries
-    messages = []
-    while len(text) > MAX_TELEGRAM_MESSAGE_LENGTH:
-        split_index = text.rfind('\n', 0, MAX_TELEGRAM_MESSAGE_LENGTH)
-        if split_index == -1:
-            split_index = MAX_TELEGRAM_MESSAGE_LENGTH
-        messages.append(text[:split_index])
-        text = text[split_index:].lstrip()
+    # Split the text into batches of 20 captions
+    captions = text.split("\n\n")  # Assuming captions are separated by double newlines
+    batches = [captions[i:i + MAX_CAPTIONS_PER_MESSAGE] for i in range(0, len(captions), MAX_CAPTIONS_PER_MESSAGE)]
 
-    messages.append(text)  # Add the remaining text
+    for batch in batches:
+        message = "\n\n".join(batch)
+        if len(message) > MAX_TELEGRAM_MESSAGE_LENGTH:
+            # Further split if the message exceeds Telegram's character limit
+            split_index = message.rfind('\n', 0, MAX_TELEGRAM_MESSAGE_LENGTH)
+            if split_index == -1:
+                split_index = MAX_TELEGRAM_MESSAGE_LENGTH
+            message = message[:split_index]
 
-    # Send each message
-    for message in messages:
         try:
             await context.bot.send_message(chat_id=chat_id, text=message, parse_mode=parse_mode)
         except Exception as e:
@@ -244,6 +276,7 @@ async def _send_split_messages(context, chat_id, text, parse_mode):
 
 
 # Added inline keyboard with "No Keywords" button when asking for keywords
+# Added buttons for selecting the number of captions (10, 20, 30, 40, 50)
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     user_id = update.effective_user.id
     chat_id = update.effective_chat.id
@@ -289,21 +322,24 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
                                                 ]))
             elif "keywords" not in data:
                 data["keywords"] = user_input if user_input else ""
-                await update.message.reply_text("How many posts to show? (default: 30)")
+                await update.message.reply_text("How many posts to show?",
+                                                reply_markup=InlineKeyboardMarkup([
+                                                    [InlineKeyboardButton("10", callback_data="limit_10"),
+                                                     InlineKeyboardButton("20", callback_data="limit_20"),
+                                                     InlineKeyboardButton("30", callback_data="limit_30"),
+                                                     InlineKeyboardButton("40", callback_data="limit_40"),
+                                                     InlineKeyboardButton("50", callback_data="limit_50")]
+                                                ]))
             elif "limit" not in data:
-                try:
-                    limit = int(user_input) if user_input else 30
-                    data["limit"] = limit
-                    await update.message.reply_text(
-                        "Do you want links included in the results? (default: yes)",
-                        reply_markup=InlineKeyboardMarkup([
-                            [InlineKeyboardButton("Yes", callback_data="include_links_yes"),
-                             InlineKeyboardButton("No", callback_data="include_links_no")]
-                        ])
-                    )
-                except ValueError:
-                    await update.message.reply_text("Please enter a valid number (or just press Enter for default 30)")
-        
+                limit = int(user_input) if user_input else 30
+                data["limit"] = limit
+                await update.message.reply_text(
+                    "Do you want links included in the results? (default: yes)",
+                    reply_markup=InlineKeyboardMarkup([
+                        [InlineKeyboardButton("Yes", callback_data="include_links_yes"),
+                         InlineKeyboardButton("No", callback_data="include_links_no")]
+                    ])
+                )
         elif command == "subreddit_hot":
             if "subreddit" not in data:
                 data["subreddit"] = user_input
@@ -313,21 +349,24 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
                                                 ]))
             elif "keywords" not in data:
                 data["keywords"] = user_input if user_input else ""
-                await update.message.reply_text("How many posts to show? (default: 20)")
+                await update.message.reply_text("How many posts to show?",
+                                                reply_markup=InlineKeyboardMarkup([
+                                                    [InlineKeyboardButton("10", callback_data="limit_10"),
+                                                     InlineKeyboardButton("20", callback_data="limit_20"),
+                                                     InlineKeyboardButton("30", callback_data="limit_30"),
+                                                     InlineKeyboardButton("40", callback_data="limit_40"),
+                                                     InlineKeyboardButton("50", callback_data="limit_50")]
+                                                ]))
             elif "limit" not in data:
-                try:
-                    limit = int(user_input) if user_input else 20
-                    data["limit"] = limit
-                    await update.message.reply_text(
-                        "Do you want links included in the results? (default: yes)",
-                        reply_markup=InlineKeyboardMarkup([
-                            [InlineKeyboardButton("Yes", callback_data="include_links_yes"),
-                             InlineKeyboardButton("No", callback_data="include_links_no")]
-                        ])
-                    )
-                except ValueError:
-                    await update.message.reply_text("Please enter a valid number (or just press Enter for default 20)")
-        
+                limit = int(user_input) if user_input else 20
+                data["limit"] = limit
+                await update.message.reply_text(
+                    "Do you want links included in the results? (default: yes)",
+                    reply_markup=InlineKeyboardMarkup([
+                        [InlineKeyboardButton("Yes", callback_data="include_links_yes"),
+                         InlineKeyboardButton("No", callback_data="include_links_no")]
+                    ])
+                )
         elif command == "subreddit_top":
             if "subreddit" not in data:
                 data["subreddit"] = user_input
@@ -337,20 +376,24 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
                                                 ]))
             elif "keywords" not in data:
                 data["keywords"] = user_input if user_input else ""
-                await update.message.reply_text("How many posts to show? (default: 20)")
+                await update.message.reply_text("How many posts to show?",
+                                                reply_markup=InlineKeyboardMarkup([
+                                                    [InlineKeyboardButton("10", callback_data="limit_10"),
+                                                     InlineKeyboardButton("20", callback_data="limit_20"),
+                                                     InlineKeyboardButton("30", callback_data="limit_30"),
+                                                     InlineKeyboardButton("40", callback_data="limit_40"),
+                                                     InlineKeyboardButton("50", callback_data="limit_50")]
+                                                ]))
             elif "limit" not in data:
-                try:
-                    limit = int(user_input) if user_input else 20
-                    data["limit"] = limit
-                    await update.message.reply_text(
-                        "Do you want links included in the results? (default: yes)",
-                        reply_markup=InlineKeyboardMarkup([
-                            [InlineKeyboardButton("Yes", callback_data="include_links_yes"),
-                             InlineKeyboardButton("No", callback_data="include_links_no")]
-                        ])
-                    )
-                except ValueError:
-                    await update.message.reply_text("Please enter a valid number (or just press Enter for default 20)")
+                limit = int(user_input) if user_input else 20
+                data["limit"] = limit
+                await update.message.reply_text(
+                    "Do you want links included in the results? (default: yes)",
+                    reply_markup=InlineKeyboardMarkup([
+                        [InlineKeyboardButton("Yes", callback_data="include_links_yes"),
+                         InlineKeyboardButton("No", callback_data="include_links_no")]
+                    ])
+                )
     
     except Exception as exc:
         await update.message.reply_text(f"An error occurred: {exc}")
