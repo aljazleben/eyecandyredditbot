@@ -242,7 +242,7 @@ from reddit_service import (
 )
 
 
-# Updated `_format_json_as_text` to format user data more nicely
+# Updated `_format_json_as_text` to wrap captions in backticks for easy copy-pasting
 def _format_json_as_text(data_json: str, include_links: bool = True) -> str:
     try:
         data = json.loads(data_json)
@@ -279,7 +279,7 @@ def _format_json_as_text(data_json: str, include_links: bool = True) -> str:
             link = item.get("permalink", "")
             sub = escape_markdown(item.get("subreddit", "unknown"), version=2)
 
-            lines.append(f"*{i}. {title}*")
+            lines.append(f"*{i}.* `{title}`")  # Wrap caption in backticks
             lines.append(f"📊 {up:,} upvotes | r/{sub}")
             if include_links:
                 lines.append(f"🔗 [Link](https://www.reddit.com{link})")
