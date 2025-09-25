@@ -386,6 +386,11 @@ async def user_details(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
     await update.message.reply_text("User details functionality is not yet implemented.")
 
 
+# Placeholder implementation for the `user_top` command
+async def user_top(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    await update.message.reply_text("User top posts functionality is not yet implemented.")
+
+
 def build_application() -> Application:
     if not TELEGRAM_BOT_TOKEN:
         raise RuntimeError(
