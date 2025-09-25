@@ -291,6 +291,7 @@ async def _send_split_messages(context, chat_id, text, parse_mode):
 # Added buttons for selecting the number of captions (10, 20, 30, 40, 50)
 # Fixed the "Hot Posts" flow to display buttons for selecting the number of captions
 # Fixed "Subreddit Top Posts" and "User Top Posts" flows to display buttons for selecting the number of posts
+# Updated default limit to 50 for "Top Posts," "User Top Posts," and "Hot Posts"
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     user_id = update.effective_user.id
     chat_id = update.effective_chat.id
@@ -344,6 +345,15 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
                                                      InlineKeyboardButton("40", callback_data="limit_40"),
                                                      InlineKeyboardButton("50", callback_data="limit_50")]
                                                 ]))
+            elif "limit" not in data:
+                data["limit"] = 50  # Default to 50
+                await update.message.reply_text(
+                    "Do you want links included in the results? (default: yes)",
+                    reply_markup=InlineKeyboardMarkup([
+                        [InlineKeyboardButton("Yes", callback_data="include_links_yes"),
+                         InlineKeyboardButton("No", callback_data="include_links_no")]
+                    ])
+                )
         elif command == "subreddit_hot":
             if "subreddit" not in data:
                 data["subreddit"] = user_input
@@ -361,6 +371,15 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
                                                      InlineKeyboardButton("40", callback_data="limit_40"),
                                                      InlineKeyboardButton("50", callback_data="limit_50")]
                                                 ]))
+            elif "limit" not in data:
+                data["limit"] = 50  # Default to 50
+                await update.message.reply_text(
+                    "Do you want links included in the results? (default: yes)",
+                    reply_markup=InlineKeyboardMarkup([
+                        [InlineKeyboardButton("Yes", callback_data="include_links_yes"),
+                         InlineKeyboardButton("No", callback_data="include_links_no")]
+                    ])
+                )
         elif command == "subreddit_top":
             if "subreddit" not in data:
                 data["subreddit"] = user_input
@@ -378,6 +397,15 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
                                                      InlineKeyboardButton("40", callback_data="limit_40"),
                                                      InlineKeyboardButton("50", callback_data="limit_50")]
                                                 ]))
+            elif "limit" not in data:
+                data["limit"] = 50  # Default to 50
+                await update.message.reply_text(
+                    "Do you want links included in the results? (default: yes)",
+                    reply_markup=InlineKeyboardMarkup([
+                        [InlineKeyboardButton("Yes", callback_data="include_links_yes"),
+                         InlineKeyboardButton("No", callback_data="include_links_no")]
+                    ])
+                )
     
     except Exception as exc:
         await update.message.reply_text(f"An error occurred: {exc}")
@@ -423,30 +451,21 @@ def build_application() -> Application:
     return app
 
 
-# Updated to use webhook mode instead of polling
+# Reverted to polling mode instead of webhook
 async def main_async() -> None:
     application = build_application()
     logger.info("Starting Telegram bot...")
 
-    # Set up webhook
-    WEBHOOK_URL = os.getenv("WEBHOOK_URL", "")
-    if not WEBHOOK_URL:
-        raise RuntimeError("Missing WEBHOOK_URL in environment. Set it in .env or the environment.")
-
+    # Start polling
     await application.initialize()
     await application.start()
-    await application.updater.stop()  # Stop polling to avoid conflicts
-
-    # Set webhook
-    await application.bot.set_webhook(WEBHOOK_URL)
-    logger.info(f"Webhook set to {WEBHOOK_URL}")
+    await application.updater.start_polling()
 
     try:
         await asyncio.Event().wait()
     except KeyboardInterrupt:
         logger.info("Received shutdown signal...")
     finally:
-        await application.bot.delete_webhook()
         await application.stop()
         await application.shutdown()
         logger.info("Telegram bot stopped.")
