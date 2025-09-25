@@ -213,7 +213,7 @@ from reddit_service import (
 )
 
 
-# Updated `_format_json_as_text` to ensure proper escaping and splitting of long messages
+# Updated `_format_json_as_text` to format user data more nicely
 def _format_json_as_text(data_json: str, include_links: bool = True) -> str:
     try:
         data = json.loads(data_json)
@@ -224,13 +224,25 @@ def _format_json_as_text(data_json: str, include_links: bool = True) -> str:
     if isinstance(results, list):
         header_parts = []
         if "username" in data:
-            header_parts.append(f"👤 {escape_markdown(data.get('username'), version=2)}")
-        if "subreddit" in data:
-            header_parts.append(f"📱 r/{escape_markdown(data.get('subreddit'), version=2)}")
-        if data.get("keywords"):
-            header_parts.append(f"🔍 '{escape_markdown(data.get('keywords'), version=2)}'")
+            header_parts.append(f"👤 *Username:* {escape_markdown(data.get('username'), version=2)}")
+        if "period_days" in data:
+            header_parts.append(f"📅 *Period Days:* {data.get('period_days')} days")
+        if "account_age_days" in data:
+            header_parts.append(f"📆 *Account Age:* {data.get('account_age_days')} days")
+        if "post_karma" in data:
+            header_parts.append(f"⬆️ *Post Karma:* {data.get('post_karma'):,}")
+        if "comment_karma" in data:
+            header_parts.append(f"💬 *Comment Karma:* {data.get('comment_karma'):,}")
+        if "posts_submitted" in data:
+            header_parts.append(f"📝 *Posts Submitted:* {data.get('posts_submitted'):,}")
+        if "deleted_posts" in data:
+            header_parts.append(f"❌ *Deleted Posts:* {data.get('deleted_posts'):,}")
+        if "total_upvotes" in data:
+            header_parts.append(f"👍 *Total Upvotes:* {data.get('total_upvotes'):,}")
+        if "total_comments" in data:
+            header_parts.append(f"💬 *Total Comments:* {data.get('total_comments'):,}")
 
-        lines = [" | ".join(header_parts), ""] if header_parts else []
+        lines = ["\n".join(header_parts), ""] if header_parts else []
 
         for i, item in enumerate(results[:data.get("limit", 10)], 1):
             title = escape_markdown(item.get("title", "No title"), version=2)
@@ -245,7 +257,7 @@ def _format_json_as_text(data_json: str, include_links: bool = True) -> str:
             lines.append("")
 
         text = "\n".join(lines)
-        return text[:4000] if text else "❌ No results found."  # Ensure message length is within Telegram's limit
+        return text[:4000] if text else "❌ No results found."
 
     # Fallback to pretty JSON
     return escape_markdown(json.dumps(data, indent=2), version=2)
@@ -330,16 +342,6 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
                                                      InlineKeyboardButton("40", callback_data="limit_40"),
                                                      InlineKeyboardButton("50", callback_data="limit_50")]
                                                 ]))
-            elif "limit" not in data:
-                limit = int(user_input) if user_input else 30
-                data["limit"] = limit
-                await update.message.reply_text(
-                    "Do you want links included in the results? (default: yes)",
-                    reply_markup=InlineKeyboardMarkup([
-                        [InlineKeyboardButton("Yes", callback_data="include_links_yes"),
-                         InlineKeyboardButton("No", callback_data="include_links_no")]
-                    ])
-                )
         elif command == "subreddit_hot":
             if "subreddit" not in data:
                 data["subreddit"] = user_input
@@ -357,16 +359,6 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
                                                      InlineKeyboardButton("40", callback_data="limit_40"),
                                                      InlineKeyboardButton("50", callback_data="limit_50")]
                                                 ]))
-            elif "limit" not in data:
-                limit = int(user_input) if user_input else 20
-                data["limit"] = limit
-                await update.message.reply_text(
-                    "Do you want links included in the results? (default: yes)",
-                    reply_markup=InlineKeyboardMarkup([
-                        [InlineKeyboardButton("Yes", callback_data="include_links_yes"),
-                         InlineKeyboardButton("No", callback_data="include_links_no")]
-                    ])
-                )
         elif command == "subreddit_top":
             if "subreddit" not in data:
                 data["subreddit"] = user_input
@@ -384,16 +376,6 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
                                                      InlineKeyboardButton("40", callback_data="limit_40"),
                                                      InlineKeyboardButton("50", callback_data="limit_50")]
                                                 ]))
-            elif "limit" not in data:
-                limit = int(user_input) if user_input else 20
-                data["limit"] = limit
-                await update.message.reply_text(
-                    "Do you want links included in the results? (default: yes)",
-                    reply_markup=InlineKeyboardMarkup([
-                        [InlineKeyboardButton("Yes", callback_data="include_links_yes"),
-                         InlineKeyboardButton("No", callback_data="include_links_no")]
-                    ])
-                )
     
     except Exception as exc:
         await update.message.reply_text(f"An error occurred: {exc}")
@@ -444,10 +426,8 @@ async def main_async() -> None:
     logger.info("Starting Telegram bot...")
     await application.initialize()
     await application.start()
-    # Run until Ctrl+C or Railway shutdown
     await application.updater.start_polling(drop_pending_updates=True)
     try:
-        # Keep running until interrupted
         await asyncio.Event().wait()
     except KeyboardInterrupt:
         logger.info("Received shutdown signal...")
