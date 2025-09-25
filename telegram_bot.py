@@ -423,18 +423,30 @@ def build_application() -> Application:
     return app
 
 
+# Updated to use webhook mode instead of polling
 async def main_async() -> None:
     application = build_application()
     logger.info("Starting Telegram bot...")
+
+    # Set up webhook
+    WEBHOOK_URL = os.getenv("WEBHOOK_URL", "")
+    if not WEBHOOK_URL:
+        raise RuntimeError("Missing WEBHOOK_URL in environment. Set it in .env or the environment.")
+
     await application.initialize()
     await application.start()
-    await application.updater.start_polling(drop_pending_updates=True)
+    await application.updater.stop()  # Stop polling to avoid conflicts
+
+    # Set webhook
+    await application.bot.set_webhook(WEBHOOK_URL)
+    logger.info(f"Webhook set to {WEBHOOK_URL}")
+
     try:
         await asyncio.Event().wait()
     except KeyboardInterrupt:
         logger.info("Received shutdown signal...")
     finally:
-        await application.updater.stop()
+        await application.bot.delete_webhook()
         await application.stop()
         await application.shutdown()
         logger.info("Telegram bot stopped.")
