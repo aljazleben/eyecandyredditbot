@@ -90,7 +90,7 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
     await update.message.reply_text(help_text)
 
 
-# Fixed button callback to handle "Yes" and "No" responses properly and ensure Markdown escaping
+# Ensured buttons for selecting the number of captions are displayed even when "No Keywords" is selected
 async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     query = update.callback_query
     await query.answer()
@@ -148,6 +148,45 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
             finally:
                 del conversation_data[user_id]
 
+    if query.data == "no_keywords":
+        if user_id in conversation_data:
+            conversation_data[user_id]["data"]["keywords"] = ""
+            command = conversation_data[user_id]["command"]
+
+            if command == "user_top":
+                await query.edit_message_text(
+                    "How many posts to show?",
+                    reply_markup=InlineKeyboardMarkup([
+                        [InlineKeyboardButton("10", callback_data="limit_10"),
+                         InlineKeyboardButton("20", callback_data="limit_20"),
+                         InlineKeyboardButton("30", callback_data="limit_30"),
+                         InlineKeyboardButton("40", callback_data="limit_40"),
+                         InlineKeyboardButton("50", callback_data="limit_50")]
+                    ])
+                )
+            elif command == "subreddit_hot":
+                await query.edit_message_text(
+                    "How many posts to show?",
+                    reply_markup=InlineKeyboardMarkup([
+                        [InlineKeyboardButton("10", callback_data="limit_10"),
+                         InlineKeyboardButton("20", callback_data="limit_20"),
+                         InlineKeyboardButton("30", callback_data="limit_30"),
+                         InlineKeyboardButton("40", callback_data="limit_40"),
+                         InlineKeyboardButton("50", callback_data="limit_50")]
+                    ])
+                )
+            elif command == "subreddit_top":
+                await query.edit_message_text(
+                    "How many posts to show?",
+                    reply_markup=InlineKeyboardMarkup([
+                        [InlineKeyboardButton("10", callback_data="limit_10"),
+                         InlineKeyboardButton("20", callback_data="limit_20"),
+                         InlineKeyboardButton("30", callback_data="limit_30"),
+                         InlineKeyboardButton("40", callback_data="limit_40"),
+                         InlineKeyboardButton("50", callback_data="limit_50")]
+                    ])
+                )
+
     # Start the appropriate conversation
     if query.data == "user_details":
         conversation_data[user_id] = {"command": "user_details", "data": {}}
@@ -161,16 +200,6 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     elif query.data == "subreddit_top":
         conversation_data[user_id] = {"command": "subreddit_top", "data": {}}
         await query.edit_message_text("What subreddit do you want to check? (without r/)")
-    elif query.data == "no_keywords":
-        if user_id in conversation_data:
-            conversation_data[user_id]["data"]["keywords"] = ""
-            command = conversation_data[user_id]["command"]
-            if command == "user_top":
-                await query.edit_message_text("How many posts to show? (default: 30)")
-            elif command == "subreddit_hot":
-                await query.edit_message_text("How many posts to show? (default: 20)")
-            elif command == "subreddit_top":
-                await query.edit_message_text("How many posts to show? (default: 20)")
 
     if query.data.startswith("limit_"):
         if user_id in conversation_data:
@@ -473,5 +502,7 @@ async def main_async() -> None:
 
 if __name__ == "__main__":
     asyncio.run(main_async())
+```
+</copilot-edited-file>
 
 
