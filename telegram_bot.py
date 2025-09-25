@@ -16,6 +16,7 @@ from telegram.ext import (
     ContextTypes,
     filters,
 )
+from telegram.helpers import escape_markdown
 
 # Load environment variables (TELEGRAM_BOT_TOKEN, Reddit creds already used by reddit_service)
 load_dotenv()
@@ -44,6 +45,7 @@ class ConversationState:
 conversation_data: Dict[int, Dict[str, Any]] = {}
 
 
+# Updated `start` function to use `ParseMode.MARKDOWN_V2` and escape text
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     keyboard = [
         [
@@ -57,21 +59,22 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         [InlineKeyboardButton("❓ Help", callback_data="help")]
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
-    
-    welcome_text = (
-        "🤖 **Reddit Bot** - Your Reddit data assistant!\n\n"
+
+    welcome_text = escape_markdown(
+        "🤖 *Reddit Bot* - Your Reddit data assistant!\n\n"
         "Choose what you'd like to do:\n\n"
-        "• **User Details** - Get account stats for any Reddit user\n"
-        "• **User Top Posts** - Find top posts by a specific user\n"
-        "• **Hot Posts** - Get trending posts from any subreddit\n"
-        "• **Top Posts** - Get all-time top posts from any subreddit\n\n"
-        "Just tap a button below to get started! 🚀"
+        "• *User Details* - Get account stats for any Reddit user\n"
+        "• *User Top Posts* - Find top posts by a specific user\n"
+        "• *Hot Posts* - Get trending posts from any subreddit\n"
+        "• *Top Posts* - Get all-time top posts from any subreddit\n\n"
+        "Just tap a button below to get started! 🚀",
+        version=2
     )
-    
+
     await update.message.reply_text(
-        welcome_text, 
+        welcome_text,
         reply_markup=reply_markup,
-        parse_mode=ParseMode.MARKDOWN
+        parse_mode=ParseMode.MARKDOWN_V2
     )
 
 
@@ -129,15 +132,16 @@ from reddit_service import (
 )
 
 
+# Updated `_format_json_as_text` function to escape Markdown characters and truncate messages
 def _format_json_as_text(data_json: str, include_links: bool = True) -> str:
     try:
         data = json.loads(data_json)
     except Exception:
-        return data_json
+        return escape_markdown(data_json, version=2)
 
     # Enhanced formatting for user details
     if "username" in data and "account_age_days" in data:
-        username = data.get('username', 'Unknown')
+        username = escape_markdown(data.get('username', 'Unknown'), version=2)
         account_age = data.get('account_age_days', 0)
         post_karma = data.get('post_karma', 0)
         comment_karma = data.get('comment_karma', 0)
@@ -149,30 +153,30 @@ def _format_json_as_text(data_json: str, include_links: bool = True) -> str:
         removed_by_mods = data.get('removed_by_mods', 0)
         removed_by_spam = data.get('removed_by_spam', 0)
         removed_by_rules = data.get('removed_by_rules', 0)
-        
+
         lines = [
-            f"👤 **{username}**",
+            f"👤 *{username}*",
             f"📅 Account age: {account_age:,} days",
             f"📊 Karma: {post_karma:,} posts | {comment_karma:,} comments",
             f"📈 Last {period_days} days: {posts_submitted} posts | {total_upvotes:,} upvotes | {total_comments:,} comments",
             f"⚠️ Removed: {deleted_posts} (mods: {removed_by_mods}, spam: {removed_by_spam}, rules: {removed_by_rules})",
             ""
         ]
-        
+
         top = data.get("highest_posts", [])
         if top:
-            lines.append("🏆 **Top Posts:**")
+            lines.append("🏆 *Top Posts:*")
         for i, item in enumerate(top[:5], 1):
-            title = item.get("title", "No title")
+            title = escape_markdown(item.get("title", "No title"), version=2)
             up = item.get("upvotes", 0)
-            sub = item.get("subreddit", "unknown")
+            sub = escape_markdown(item.get("subreddit", "unknown"), version=2)
             link = item.get("permalink", "")
-            lines.append(f"{i}. **{title}**")
+            lines.append(f"{i}. *{title}*")
             lines.append(f"   📊 {up:,} upvotes | r/{sub}")
             if include_links:
-                lines.append(f"   🔗 https://www.reddit.com{link}")
+                lines.append(f"   🔗 [Link](https://www.reddit.com{link})")
             lines.append("")
-        
+
         return "\n".join(lines)[:4000]
 
     # Enhanced formatting for post lists
@@ -180,31 +184,31 @@ def _format_json_as_text(data_json: str, include_links: bool = True) -> str:
     if isinstance(results, list):
         header_parts = []
         if "username" in data:
-            header_parts.append(f"👤 {data.get('username')}")
+            header_parts.append(f"👤 {escape_markdown(data.get('username'), version=2)}")
         if "subreddit" in data:
-            header_parts.append(f"📱 r/{data.get('subreddit')}")
+            header_parts.append(f"📱 r/{escape_markdown(data.get('subreddit'), version=2)}")
         if data.get("keywords"):
-            header_parts.append(f"🔍 '{data.get('keywords')}'")
-        
+            header_parts.append(f"🔍 '{escape_markdown(data.get('keywords'), version=2)}'")
+
         lines = [" | ".join(header_parts), ""] if header_parts else []
-        
+
         for i, item in enumerate(results[:10], 1):
-            title = item.get("title", "No title")
+            title = escape_markdown(item.get("title", "No title"), version=2)
             up = item.get("upvotes", 0)
             link = item.get("permalink", "")
-            sub = item.get("subreddit", "unknown")
-            
-            lines.append(f"**{i}. {title}**")
+            sub = escape_markdown(item.get("subreddit", "unknown"), version=2)
+
+            lines.append(f"*{i}. {title}*")
             lines.append(f"📊 {up:,} upvotes | r/{sub}")
             if include_links:
-                lines.append(f"🔗 https://www.reddit.com{link}")
+                lines.append(f"🔗 [Link](https://www.reddit.com{link})")
             lines.append("")
-        
+
         text = "\n".join(lines)
         return text[:4000] if text else "❌ No results found."
 
     # Fallback to pretty JSON
-    return json.dumps(data, indent=2)[:4000]
+    return escape_markdown(json.dumps(data, indent=2)[:4000], version=2)
 
 
 async def user_details(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
