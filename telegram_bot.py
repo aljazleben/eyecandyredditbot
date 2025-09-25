@@ -224,40 +224,20 @@ async def _send_split_messages(context, chat_id, text, parse_mode):
         await context.bot.send_message(chat_id=chat_id, text=message, parse_mode=parse_mode)
 
 
-async def user_details(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    user_id = update.effective_user.id
-    conversation_data[user_id] = {"command": "user_details", "data": {}}
-    await update.message.reply_text("What's the Reddit username you want to check? (without u/)")
-
-async def user_top(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    user_id = update.effective_user.id
-    conversation_data[user_id] = {"command": "user_top", "data": {}}
-    await update.message.reply_text("What's the Reddit username you want to check? (without u/)")
-
-async def subreddit_hot(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    user_id = update.effective_user.id
-    conversation_data[user_id] = {"command": "subreddit_hot", "data": {}}
-    await update.message.reply_text("What subreddit do you want to check? (without r/)")
-
-async def subreddit_top(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    user_id = update.effective_user.id
-    conversation_data[user_id] = {"command": "subreddit_top", "data": {}}
-    await update.message.reply_text("What subreddit do you want to check? (without r/)")
-
-
+# Added inline keyboard with "No Keywords" button when asking for keywords
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     user_id = update.effective_user.id
     chat_id = update.effective_chat.id
-    
+
     if user_id not in conversation_data:
         await update.message.reply_text("Please use one of the commands first: /user_details, /user_top, /subreddit_hot, or /subreddit_top")
         return
-    
+
     user_input = update.message.text.strip()
     conversation = conversation_data[user_id]
     command = conversation["command"]
     data = conversation["data"]
-    
+
     try:
         if command == "user_details":
             if "username" not in data:
@@ -284,7 +264,10 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         elif command == "user_top":
             if "username" not in data:
                 data["username"] = user_input
-                await update.message.reply_text("Any keywords to filter by? (optional, just press Enter to skip)")
+                await update.message.reply_text("Any keywords to filter by? (optional)",
+                                                reply_markup=InlineKeyboardMarkup([
+                                                    [InlineKeyboardButton("No Keywords", callback_data="no_keywords")]
+                                                ]))
             elif "keywords" not in data:
                 data["keywords"] = user_input if user_input else ""
                 await update.message.reply_text("How many posts to show? (default: 30)")
@@ -319,7 +302,10 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         elif command == "subreddit_hot":
             if "subreddit" not in data:
                 data["subreddit"] = user_input
-                await update.message.reply_text("Any keywords to filter by? (optional, just press Enter to skip)")
+                await update.message.reply_text("Any keywords to filter by? (optional)",
+                                                reply_markup=InlineKeyboardMarkup([
+                                                    [InlineKeyboardButton("No Keywords", callback_data="no_keywords")]
+                                                ]))
             elif "keywords" not in data:
                 data["keywords"] = user_input if user_input else ""
                 await update.message.reply_text("How many posts to show? (default: 20)")
@@ -354,7 +340,10 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         elif command == "subreddit_top":
             if "subreddit" not in data:
                 data["subreddit"] = user_input
-                await update.message.reply_text("Any keywords to filter by? (optional, just press Enter to skip)")
+                await update.message.reply_text("Any keywords to filter by? (optional)",
+                                                reply_markup=InlineKeyboardMarkup([
+                                                    [InlineKeyboardButton("No Keywords", callback_data="no_keywords")]
+                                                ]))
             elif "keywords" not in data:
                 data["keywords"] = user_input if user_input else ""
                 await update.message.reply_text("How many posts to show? (default: 20)")
