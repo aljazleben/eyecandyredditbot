@@ -90,7 +90,7 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
     await update.message.reply_text(help_text)
 
 
-# Updated button callback to proceed to the next step after "No Keywords" is selected
+# Fixed button callback to handle "Yes" and "No" responses properly and ensure Markdown escaping
 async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     query = update.callback_query
     await query.answer()
@@ -115,53 +115,38 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
             conversation_data[user_id]["data"]["include_links"] = include_links
             command = conversation_data[user_id]["command"]
 
-            if command == "user_top":
-                try:
-                    # Execute the command
+            try:
+                if command == "user_top":
                     result_json = get_top_30_captions(
                         username=conversation_data[user_id]["data"]["username"],
                         keywords=conversation_data[user_id]["data"].get("keywords", ""),
                         limit=conversation_data[user_id]["data"].get("limit", 30),
                         captions_only=False
                     )
-                    text = _format_json_as_text(result_json, include_links=include_links)
-                    await _send_split_messages(context, query.message.chat_id, text, ParseMode.MARKDOWN)
-                except Exception as exc:
-                    await query.message.reply_text(f"Error: {exc}")
-                finally:
-                    del conversation_data[user_id]
-
-            elif command == "subreddit_hot":
-                try:
-                    # Execute the command
+                elif command == "subreddit_hot":
                     result_json = get_top_20_hot(
                         subreddit_name=conversation_data[user_id]["data"]["subreddit"],
                         keywords=conversation_data[user_id]["data"].get("keywords", ""),
                         limit=conversation_data[user_id]["data"].get("limit", 20),
                         captions_only=False
                     )
-                    text = _format_json_as_text(result_json, include_links=include_links)
-                    await _send_split_messages(context, query.message.chat_id, text, ParseMode.MARKDOWN)
-                except Exception as exc:
-                    await query.message.reply_text(f"Error: {exc}")
-                finally:
-                    del conversation_data[user_id]
-
-            elif command == "subreddit_top":
-                try:
-                    # Execute the command
+                elif command == "subreddit_top":
                     result_json = get_top_20_all_time(
                         subreddit_name=conversation_data[user_id]["data"]["subreddit"],
                         keywords=conversation_data[user_id]["data"].get("keywords", ""),
                         limit=conversation_data[user_id]["data"].get("limit", 20),
                         captions_only=False
                     )
-                    text = _format_json_as_text(result_json, include_links=include_links)
-                    await _send_split_messages(context, query.message.chat_id, text, ParseMode.MARKDOWN)
-                except Exception as exc:
-                    await query.message.reply_text(f"Error: {exc}")
-                finally:
-                    del conversation_data[user_id]
+                else:
+                    await query.message.reply_text("Invalid command.")
+                    return
+
+                text = _format_json_as_text(result_json, include_links=include_links)
+                await _send_split_messages(context, query.message.chat_id, text, ParseMode.MARKDOWN)
+            except Exception as exc:
+                await query.message.reply_text(f"Error: {escape_markdown(str(exc), version=2)}", parse_mode=ParseMode.MARKDOWN)
+            finally:
+                del conversation_data[user_id]
 
     # Start the appropriate conversation
     if query.data == "user_details":
