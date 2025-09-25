@@ -90,13 +90,13 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
     await update.message.reply_text(help_text)
 
 
-# Added a "No Keywords" button for functions that pull captions
+# Updated button callback to proceed to the next step after "No Keywords" is selected
 async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     query = update.callback_query
     await query.answer()
-    
+
     user_id = query.from_user.id
-    
+
     if query.data == "help":
         help_text = (
             "**Available Commands:**\n\n"
@@ -108,7 +108,7 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         )
         await query.edit_message_text(help_text, parse_mode=ParseMode.MARKDOWN)
         return
-    
+
     # Start the appropriate conversation
     if query.data == "user_details":
         conversation_data[user_id] = {"command": "user_details", "data": {}}
@@ -125,7 +125,13 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     elif query.data == "no_keywords":
         if user_id in conversation_data:
             conversation_data[user_id]["data"]["keywords"] = ""
-            await query.edit_message_text("No keywords selected. Proceeding...")
+            command = conversation_data[user_id]["command"]
+            if command == "user_top":
+                await query.edit_message_text("How many posts to show? (default: 30)")
+            elif command == "subreddit_hot":
+                await query.edit_message_text("How many posts to show? (default: 20)")
+            elif command == "subreddit_top":
+                await query.edit_message_text("How many posts to show? (default: 20)")
 
 
 # Implementations using reddit_service
@@ -137,54 +143,13 @@ from reddit_service import (
 )
 
 
-# Updated `_format_json_as_text` function to escape Markdown characters and truncate messages
+# Updated `_format_json_as_text` to ensure proper escaping and splitting of long messages
 def _format_json_as_text(data_json: str, include_links: bool = True) -> str:
     try:
         data = json.loads(data_json)
     except Exception:
         return escape_markdown(data_json, version=2)
 
-    # Enhanced formatting for user details
-    if "username" in data and "account_age_days" in data:
-        username = escape_markdown(data.get('username', 'Unknown'), version=2)
-        account_age = data.get('account_age_days', 0)
-        post_karma = data.get('post_karma', 0)
-        comment_karma = data.get('comment_karma', 0)
-        period_days = data.get('period_days', 1)
-        posts_submitted = data.get('posts_submitted', 0)
-        total_upvotes = data.get('total_upvotes', 0)
-        total_comments = data.get('total_comments', 0)
-        deleted_posts = data.get('deleted_posts', 0)
-        removed_by_mods = data.get('removed_by_mods', 0)
-        removed_by_spam = data.get('removed_by_spam', 0)
-        removed_by_rules = data.get('removed_by_rules', 0)
-
-        lines = [
-            f"👤 *{username}*",
-            f"📅 Account age: {account_age:,} days",
-            f"📊 Karma: {post_karma:,} posts | {comment_karma:,} comments",
-            f"📈 Last {period_days} days: {posts_submitted} posts | {total_upvotes:,} upvotes | {total_comments:,} comments",
-            f"⚠️ Removed: {deleted_posts} (mods: {removed_by_mods}, spam: {removed_by_spam}, rules: {removed_by_rules})",
-            ""
-        ]
-
-        top = data.get("highest_posts", [])
-        if top:
-            lines.append("🏆 *Top Posts:*")
-        for i, item in enumerate(top[:5], 1):
-            title = escape_markdown(item.get("title", "No title"), version=2)
-            up = item.get("upvotes", 0)
-            sub = escape_markdown(item.get("subreddit", "unknown"), version=2)
-            link = item.get("permalink", "")
-            lines.append(f"{i}. *{title}*")
-            lines.append(f"   📊 {up:,} upvotes | r/{sub}")
-            if include_links:
-                lines.append(f"   🔗 [Link](https://www.reddit.com{link})")
-            lines.append("")
-
-        return "\n".join(lines)
-
-    # Enhanced formatting for post lists
     results = data.get("results")
     if isinstance(results, list):
         header_parts = []
@@ -210,18 +175,21 @@ def _format_json_as_text(data_json: str, include_links: bool = True) -> str:
             lines.append("")
 
         text = "\n".join(lines)
-        return text if text else "❌ No results found."
+        return text[:4000] if text else "❌ No results found."  # Ensure message length is within Telegram's limit
 
     # Fallback to pretty JSON
     return escape_markdown(json.dumps(data, indent=2), version=2)
 
 
-# Fixed the `send_message` call to use `await` in `_send_split_messages`
+# Updated `_send_split_messages` to handle splitting messages properly
 async def _send_split_messages(context, chat_id, text, parse_mode):
     MAX_TELEGRAM_MESSAGE_LENGTH = 4096
     messages = [text[i:i + MAX_TELEGRAM_MESSAGE_LENGTH] for i in range(0, len(text), MAX_TELEGRAM_MESSAGE_LENGTH)]
     for message in messages:
-        await context.bot.send_message(chat_id=chat_id, text=message, parse_mode=parse_mode)
+        try:
+            await context.bot.send_message(chat_id=chat_id, text=message, parse_mode=parse_mode)
+        except Exception as e:
+            logging.error(f"Error sending message: {e}")
 
 
 # Added inline keyboard with "No Keywords" button when asking for keywords
