@@ -289,6 +289,8 @@ async def _send_split_messages(context, chat_id, text, parse_mode):
 
 # Added inline keyboard with "No Keywords" button when asking for keywords
 # Added buttons for selecting the number of captions (10, 20, 30, 40, 50)
+# Fixed the "Hot Posts" flow to display buttons for selecting the number of captions
+# Fixed "Subreddit Top Posts" and "User Top Posts" flows to display buttons for selecting the number of posts
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     user_id = update.effective_user.id
     chat_id = update.effective_chat.id
